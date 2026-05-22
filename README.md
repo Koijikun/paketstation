@@ -33,9 +33,16 @@ paketstation/
 ### 1. PostgreSQL installieren
 
 **macOS (Homebrew):**
+
+> **Wichtig:** Homebrew's PostGIS-Formel (3.6.x) wird aktuell gegen PostgreSQL 17 gebaut.
+> PostgreSQL 16 funktioniert auf macOS daher **nicht** mit `brew install postgis`.
+> Bitte exakt Version 17 verwenden.
+
 ```bash
-brew install postgresql@16
-brew services start postgresql@16
+brew install postgresql@17
+brew services start postgresql@17
+echo 'export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 **Ubuntu / Debian:**
@@ -74,12 +81,24 @@ Navigiere zu **Spatial Extensions** → **PostGIS** (Version muss zur PostgreSQL
 
 ### 3. Datenbank erstellen
 
-**psql-Shell öffnen:**
+**macOS:** Homebrew PostgreSQL erstellt keinen `postgres`-Superuser automatisch. Diesen zuerst anlegen:
 
-- Windows: "SQL Shell (psql)" im Startmenü suchen. Bei den Verbindungsprompts jeweils Enter drücken (Defaults übernehmen), nur beim Port die eigene Portnummer eingeben. Erst wenn `postgres=#` erscheint, Befehle eingeben.
-- macOS / Linux: `psql -U postgres` im Terminal
+```bash
+createuser -s postgres
+createdb paketstation
+psql -d paketstation -c "CREATE EXTENSION postgis;"
+psql -d paketstation -c "CREATE EXTENSION postgis_topology;"
+```
 
-**In der psql-Shell:**
+**Linux:**
+```bash
+sudo -u postgres createdb paketstation
+sudo -u postgres psql -d paketstation -c "CREATE EXTENSION postgis;"
+sudo -u postgres psql -d paketstation -c "CREATE EXTENSION postgis_topology;"
+```
+
+**Windows:** "SQL Shell (psql)" im Startmenü suchen. Bei den Verbindungsprompts jeweils Enter drücken (Defaults übernehmen), nur beim Port die eigene Portnummer eingeben. Erst wenn `postgres=#` erscheint:
+
 ```sql
 CREATE DATABASE paketstation;
 \c paketstation
@@ -90,7 +109,7 @@ CREATE EXTENSION postgis_topology;
 
 Verbindung testen:
 ```bash
-psql -U postgres -p DEIN_PORT -d paketstation -c "SELECT PostGIS_Version();"
+psql -U postgres -d paketstation -c "SELECT PostGIS_Version();"
 # Erwartete Ausgabe: z.B. "3.4 USE_GEOS=1 ..."
 ```
 
@@ -101,10 +120,13 @@ psql -U postgres -p DEIN_PORT -d paketstation -c "SELECT PostGIS_Version();"
 Das Projekt benötigt Python 3.11 oder neuer. Falls pyenv verwendet wird:
 
 ```bash
-pyenv install 3.11.9
+pyenv install 3.11.9   # kompiliert aus dem Quellcode, dauert ca. 3–5 Minuten
 cd pfad/zu/paketstation
 pyenv local 3.11.9
 ```
+
+> Alternativ kann eine bereits installierte Version wie `3.11.4` verwendet werden:
+> `echo "3.11.4" > .python-version`
 
 ---
 
@@ -127,7 +149,7 @@ pip install -r requirements.txt
 ```
 
 Das `(venv)` am Zeilenanfang zeigt an, dass das venv aktiv ist.
-Bei jeder neuen Sitzung muss das venv erneut aktiviert werden (`venv\Scripts\activate`).
+Bei jeder neuen Sitzung muss das venv erneut aktiviert werden (`source venv/bin/activate` bzw. `venv\Scripts\activate`).
 
 ---
 
@@ -169,6 +191,10 @@ und startet den API-Server.
 ```bash
 python main.py --from-db --serve
 ```
+
+> **Hinweis:** Falls beim ersten Lauf die OSM-Layer `public_transport` oder `shops` leer bleiben
+> (406-Fehler von der Overpass API), kann in `src/config.py` der Mirror gewechselt werden:
+> `OVERPASS_URL = "https://overpass.kumi.systems/api/interpreter"`
 
 ---
 

@@ -41,9 +41,9 @@ DEFAULT_WEIGHTS = {
 # ---------------------------------------------------------------------------
 # OSM Overpass – Abfragen
 # ---------------------------------------------------------------------------
-OVERPASS_URL          = "https://overpass-api.de/api/interpreter"
+OVERPASS_URL          = "https://overpass.kumi.systems/api/interpreter"
 OVERPASS_TIMEOUT      = 60   # Sekunden
-OVERPASS_USER_AGENT   = "PaketstationAnalyseZurich/1.0 (contact: user@example.com)" # Identifiziert die App bei OSM
+OVERPASS_USER_AGENT   = "PaketstationAnalyseZurich/1.0 (contact: paketstation@proton.me)"
 
 # ---------------------------------------------------------------------------
 # Lokale Daten (Post CH)
