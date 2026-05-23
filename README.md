@@ -239,20 +239,9 @@ ruff check .    # Linting
 ruff format .   # Formatierung
 ```
 
-**Reproduzierbare Umgebung (Lockfile):** `pyproject.toml` definiert die Abhängigkeiten
-mit Mindestversionen; `requirements.lock` enthält die exakt getesteten Versionen
-(Python 3.11). Für eine reproduzierbare Installation:
-
-```bash
-pip install -r requirements.lock
-pip install -e . --no-deps      # nur das Package selbst (editierbar)
-```
-
-Lock nach Dependency-Änderungen neu erzeugen:
-
-```bash
-pip freeze --exclude-editable > requirements.lock
-```
+**Abhängigkeiten:** `pyproject.toml` definiert alle Abhängigkeiten (mit Mindestversionen).
+`pip install -e .` installiert sie. Für eine exakt reproduzierbare Umgebung kann bei Bedarf
+ein Lockfile erzeugt werden (`pip freeze --exclude-editable > requirements.lock`).
 
 ---
 
