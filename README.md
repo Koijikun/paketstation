@@ -293,16 +293,19 @@ pip freeze --exclude-editable > requirements.lock
 
 Der Gesamtscore ist ein gewichteter Mittelwert von fünf Teilscores (jeweils 0–100).
 Die Gewichte werden über das **AHP-Verfahren** (Analytic Hierarchy Process, Saaty) aus
-paarweisen Vergleichen hergeleitet und auf Konsistenz geprüft (**CR ≈ 0.015 < 0.10**).
+paarweisen Vergleichen hergeleitet und auf Konsistenz geprüft (**CR ≈ 0.007 < 0.10**).
 Per CLI (`--weights`) bzw. über die Slider in der Karte sind sie überschreibbar.
 
 | Faktor | Methode | Radius | AHP-Gewicht |
 |---|---|---|---|
-| ÖV-Erreichbarkeit | Haltestellen im Radius | 400 m | **41.7 %** |
-| Bevölkerungsdichte | EW/ha des nächsten BFS-Quartiers | — | **26.3 %** |
-| Nahversorgung | Supermärkte im Radius | 600 m | **16.0 %** |
-| Konkurrenz (neg.) | Distanz zur nächsten Paketstation | — | **9.7 %** |
-| Fusswegnetz-Proxy | POI-Dichte im Radius | 300 m | **6.2 %** |
+| ÖV-Erreichbarkeit | Haltestellen im Radius | 400 m | **37.5 %** |
+| Konkurrenz/Gap (neg.) | Distanz zur nächsten Paketstation (bis 1500 m) | — | **21.5 %** |
+| Bevölkerungsdichte | EW/ha des nächsten BFS-Quartiers | — | **21.5 %** |
+| Nahversorgung | Supermärkte im Radius | 600 m | **12.1 %** |
+| Fusswegnetz-Proxy | POI-Dichte im Radius | 300 m | **7.3 %** |
+
+Das Standortziel ist „**Nachfrage UND unterversorgt**": Der Gap-Faktor (Distanz zur nächsten
+bestehenden Station, kontinuierlich bis 1500 m) ist mit 21.5 % gleichauf mit der Bevölkerung.
 
 Der `score_total` ist **absolut** (0–100, zwischen Läufen vergleichbar), keine
 Re-Normalisierung auf das Maximum. Alle Distanzen in CH1903+/LV95 (EPSG:2056).

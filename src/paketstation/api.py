@@ -288,11 +288,11 @@ def get_map():
           </span>
         </div>
       </h3>
-      <div class="weight-row"><span class="weight-label">Bevölkerung</span><input type="range" id="w-pop" min="0" max="50" step="0.1" value="26.3"><span class="weight-val" id="wv-pop">26%</span></div>
-      <div class="weight-row"><span class="weight-label">ÖV-Haltestellen</span><input type="range" id="w-pt" min="0" max="50" step="0.1" value="41.7"><span class="weight-val" id="wv-pt">42%</span></div>
-      <div class="weight-row"><span class="weight-label">Supermärkte</span><input type="range" id="w-shop" min="0" max="50" step="0.1" value="16"><span class="weight-val" id="wv-shop">16%</span></div>
-      <div class="weight-row"><span class="weight-label">Konkurrenz (neg.)</span><input type="range" id="w-comp" min="0" max="50" step="0.1" value="9.7"><span class="weight-val" id="wv-comp">10%</span></div>
-      <div class="weight-row"><span class="weight-label">Fusswegnetz</span><input type="range" id="w-walk" min="0" max="50" step="0.1" value="6.2"><span class="weight-val" id="wv-walk">6%</span></div>
+      <div class="weight-row"><span class="weight-label">Bevölkerung</span><input type="range" id="w-pop" min="0" max="50" step="0.1" value="21.5"><span class="weight-val" id="wv-pop">22%</span></div>
+      <div class="weight-row"><span class="weight-label">ÖV-Haltestellen</span><input type="range" id="w-pt" min="0" max="50" step="0.1" value="37.5"><span class="weight-val" id="wv-pt">38%</span></div>
+      <div class="weight-row"><span class="weight-label">Supermärkte</span><input type="range" id="w-shop" min="0" max="50" step="0.1" value="12.1"><span class="weight-val" id="wv-shop">12%</span></div>
+      <div class="weight-row"><span class="weight-label">Konkurrenz (neg.)</span><input type="range" id="w-comp" min="0" max="50" step="0.1" value="21.5"><span class="weight-val" id="wv-comp">22%</span></div>
+      <div class="weight-row"><span class="weight-label">Fusswegnetz</span><input type="range" id="w-walk" min="0" max="50" step="0.1" value="7.3"><span class="weight-val" id="wv-walk">7%</span></div>
     </div>
     <div class="s-section">
       <h3>
@@ -378,7 +378,7 @@ const weights = {
 
 // Präzise Gewichtswerte (in %). Werden beim Start aus /api/weights (AHP)
 // gesetzt, damit die Default-Karte exakt dem gespeicherten Score entspricht.
-const weightValues = { pop: 26.3, pt: 41.7, shop: 16, comp: 9.7, walk: 6.2 };
+const weightValues = { pop: 21.5, pt: 37.5, shop: 12.1, comp: 21.5, walk: 7.3 };
 
 // Mapping API-Faktor -> Slider-Key
 const API_TO_SLIDER = {

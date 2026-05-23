@@ -62,6 +62,7 @@ def test_config_default_weights():
     }
     assert sum(DEFAULT_WEIGHTS.values()) == pytest.approx(1.0)
     assert AHP_CONSISTENCY_RATIO < 0.10
-    # grobe Erwartung: ÖV ~0.42, Bevölkerung ~0.26
-    assert DEFAULT_WEIGHTS["public_transport"] == pytest.approx(0.417, abs=0.02)
-    assert DEFAULT_WEIGHTS["population"] == pytest.approx(0.263, abs=0.02)
+    # ÖV dominant; Gap (competition) gleichauf mit Bevölkerung (Standortziel)
+    assert DEFAULT_WEIGHTS["public_transport"] == pytest.approx(0.375, abs=0.02)
+    assert DEFAULT_WEIGHTS["competition"] == pytest.approx(0.215, abs=0.02)
+    assert DEFAULT_WEIGHTS["competition"] == pytest.approx(DEFAULT_WEIGHTS["population"], abs=0.01)

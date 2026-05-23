@@ -26,7 +26,11 @@ GRID_RESOLUTION_M = 300  # Rasterpunkt-Abstand in Metern
 # ---------------------------------------------------------------------------
 RADIUS_PT_M = 400  # ÖV-Haltestellen
 RADIUS_SHOP_M = 600  # Supermärkte / Convenience
-RADIUS_COMPETE_M = 500  # Bestehende Paketstationen (Konkurrenz)
+# Konkurrenz: Sättigungsdistanz für den Gap-Faktor. Distanz zur nächsten
+# bestehenden Station wird auf [0, RADIUS_COMPETE_M] gekappt und auf 0–100
+# normiert (weiter weg = unterversorgter = höher). 1500 m statt 500 m, damit
+# der Faktor differenziert – bei 500 m erreichten 77 % der Punkte den Maximalwert.
+RADIUS_COMPETE_M = 1500  # Bestehende Paketstationen (Konkurrenz / Gap)
 RADIUS_WALK_M = 300  # Fusswegnetz-Proxy (allg. POI-Dichte)
 
 # ---------------------------------------------------------------------------
@@ -35,14 +39,15 @@ RADIUS_WALK_M = 300  # Fusswegnetz-Proxy (allg. POI-Dichte)
 # Die Gewichte werden NICHT mehr frei gesetzt, sondern aus paarweisen Vergleichen
 # der Faktoren abgeleitet (Saaty-Skala 1–9) und auf Konsistenz geprüft (CR < 0.10).
 #
-# Begründung der Vergleiche (aus den Forschungshypothesen):
+# Begründung der Vergleiche (aus den Forschungshypothesen + Standortziel):
 #   H2  ÖV-Knotenpunkte > Wohnortnähe  → public_transport ist dominanter Faktor
-#   H1  Wohndichte = Basispotenzial    → population zweitwichtigster Treiber
-#   Präsentation: 40 % Frequenz / 30 % Bevölkerung / 30 % POI
-#   competition (Gap-Analyse, H3) als Korrektiv; walkability als schwacher POI-Proxy
+#   Standortziel: NEUE Stationen dort, wo Nachfrage da ist UND noch keine Station →
+#                 competition (Gap) hoch gewichtet, gleichauf mit Bevölkerung
+#   H1  Wohndichte = Basispotenzial    → population bleibt gleichstark wie der Gap
+#   shops = Nahversorgung; walkability = schwacher POI-Proxy (gering)
 #
-# Ergebnis (CR ≈ 0.015): ÖV 41.7 % · Bevölkerung 26.3 % · Shops 16.0 %
-#                        · Konkurrenz 9.7 % · Walkability 6.2 %  → trifft 40/30/30.
+# Ergebnis (CR ≈ 0.007): ÖV 37.5 % · Konkurrenz/Gap 21.5 % · Bevölkerung 21.5 %
+#                        · Shops 12.1 % · Walkability 7.3 %.
 # Per CLI (--weights) bleiben die Gewichte überschreibbar.
 
 AHP_FACTORS = ["public_transport", "population", "shops", "competition", "walkability"]
@@ -50,15 +55,15 @@ AHP_FACTORS = ["public_transport", "population", "shops", "competition", "walkab
 # Obere Dreiecksmatrix: wie viel wichtiger ist Zeile gegenüber Spalte (Saaty 1–9).
 AHP_JUDGMENTS = {
     ("public_transport", "population"): 2,
+    ("public_transport", "competition"): 2,
     ("public_transport", "shops"): 3,
-    ("public_transport", "competition"): 4,
-    ("public_transport", "walkability"): 5,
+    ("public_transport", "walkability"): 4,
+    ("population", "competition"): 1,  # Bevölkerung und Gap gleich wichtig
     ("population", "shops"): 2,
-    ("population", "competition"): 3,
-    ("population", "walkability"): 4,
-    ("shops", "competition"): 2,
-    ("shops", "walkability"): 3,
-    ("competition", "walkability"): 2,
+    ("population", "walkability"): 3,
+    ("competition", "shops"): 2,
+    ("competition", "walkability"): 3,
+    ("shops", "walkability"): 2,
 }
 
 DEFAULT_WEIGHTS, AHP_CONSISTENCY_RATIO = derive_weights(AHP_FACTORS, AHP_JUDGMENTS)
