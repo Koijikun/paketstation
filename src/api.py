@@ -11,7 +11,7 @@ Endpoints:
     GET /api/quartiere       → BFS-Quartiere
 
 Starten:
-    uvicorn paketstation.api:app --reload --port 8000
+    uvicorn api:app --reload --port 8000
 """
 
 import json
@@ -22,8 +22,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from paketstation.config import AHP_CONSISTENCY_RATIO, DEFAULT_WEIGHTS
-from paketstation.db import (
+from config import AHP_CONSISTENCY_RATIO, DEFAULT_WEIGHTS
+from db import (
     get_engine,
     load_geojson_for_api,
     load_top_candidates,

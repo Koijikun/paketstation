@@ -14,7 +14,7 @@ import geopandas as gpd
 import requests
 from shapely.geometry import Point
 
-from paketstation.config import (
+from config import (
     BBOX,
     BFS_QUARTIERE,
     CRS_WGS84,
@@ -228,7 +228,7 @@ def load_all(
     import os
 
     if use_db and engine is not None:
-        from paketstation.db import load_layer
+        from db import load_layer
 
         logger.info("Lade Layer aus PostGIS …")
         layers = {layer: load_layer(layer, engine) for layer in OSM_QUERIES}

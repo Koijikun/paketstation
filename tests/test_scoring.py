@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from paketstation.data_loader import _empty_geodataframe, load_bfs_quartiere
-from paketstation.scoring import make_grid, score_grid, top_candidates
+from data_loader import _empty_geodataframe, load_bfs_quartiere
+from scoring import make_grid, score_grid, top_candidates
 
 SCORE_COLS = [
     "score_pop",

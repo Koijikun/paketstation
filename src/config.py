@@ -2,7 +2,7 @@
 config.py – Zentrale Konfiguration für die Paketstation-Standortanalyse Zürich
 """
 
-from paketstation.ahp import derive_weights
+from ahp import derive_weights
 
 # ---------------------------------------------------------------------------
 # Untersuchungsgebiet

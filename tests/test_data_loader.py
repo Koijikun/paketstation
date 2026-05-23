@@ -1,6 +1,6 @@
 """Tests für data_loader (ohne Netzwerk/DB)."""
 
-from paketstation.data_loader import _empty_geodataframe, load_bfs_quartiere
+from data_loader import _empty_geodataframe, load_bfs_quartiere
 
 
 def test_empty_geodataframe_has_expected_columns():

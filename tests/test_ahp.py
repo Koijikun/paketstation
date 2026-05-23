@@ -3,13 +3,13 @@
 import numpy as np
 import pytest
 
-from paketstation.ahp import (
+from ahp import (
     build_matrix,
     consistency_ratio,
     derive_weights,
     priority_vector,
 )
-from paketstation.config import (
+from config import (
     AHP_CONSISTENCY_RATIO,
     AHP_FACTORS,
     AHP_JUDGMENTS,

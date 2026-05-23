@@ -2,7 +2,7 @@
 
 from main import parse_weights
 
-from paketstation.config import DEFAULT_WEIGHTS
+from config import DEFAULT_WEIGHTS
 
 
 def test_default_weights_when_empty():

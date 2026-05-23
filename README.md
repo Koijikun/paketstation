@@ -13,14 +13,14 @@ paketstation/
 ├── main.py                      # Einstiegspunkt (CLI)
 ├── pyproject.toml               # Package-Definition, Abhängigkeiten, Tooling
 ├── .env.example                 # Vorlage für DB-Zugangsdaten (→ .env kopieren)
-├── src/
-│   └── paketstation/            # Python-Package (src-Layout)
-│       ├── config.py            # Konstanten, Gewichte, BFS-Daten, OSM-Queries
-│       ├── data_loader.py       # Overpass API + BFS + PostGIS-Lesezugriff
-│       ├── scoring.py           # Rastergenerierung + ScoringEngine (cKDTree)
-│       ├── visualizer.py        # Folium-Karte (statische HTML-Ausgabe)
-│       ├── db.py                # PostGIS: Verbindung, Schema, Lesen/Schreiben
-│       └── api.py               # FastAPI: GeoJSON-Endpoints + Live-Karte
+├── src/                        # Python-Module (flach, via pyproject als py-modules)
+│   ├── config.py               # Konstanten, Gewichte (AHP), BFS-Daten, OSM-Queries
+│   ├── ahp.py                  # AHP: Prioritätsvektor + Konsistenzprüfung (CR)
+│   ├── data_loader.py          # Overpass API + BFS + PostGIS-Lesezugriff
+│   ├── scoring.py              # Rastergenerierung + ScoringEngine (cKDTree)
+│   ├── visualizer.py           # Folium-Karte (statische HTML-Ausgabe)
+│   ├── db.py                   # PostGIS: Verbindung, Schema, Lesen/Schreiben
+│   └── api.py                  # FastAPI: GeoJSON-Endpoints + Live-Karte
 ├── data/                        # Eingabedaten + GeoJSON-Cache (Cache auto-generiert)
 └── output/                      # Ausgaben (auto-generiert, nicht versioniert)
     ├── karte.html
@@ -162,9 +162,9 @@ venv\Scripts\activate
 pip install -e .
 ```
 
-Das Projekt nutzt ein **src-Layout** (Package unter `src/paketstation/`). Der editierbare
-Install (`pip install -e .`) macht das Package importierbar – ohne ihn findet `python main.py`
-das Modul `paketstation` nicht. Abhängigkeiten und Tooling sind in `pyproject.toml` definiert;
+Die Python-Module liegen flach in `src/` (als `py-modules` in `pyproject.toml` deklariert).
+Der editierbare Install (`pip install -e .`) macht sie importierbar – ohne ihn findet
+`python main.py` die Module (`config`, `db`, …) nicht. Abhängigkeiten und Tooling sind in `pyproject.toml` definiert;
 Dev-Werkzeuge (pytest, ruff) optional via `pip install -e ".[dev]"`.
 
 Das `(venv)` am Zeilenanfang zeigt an, dass das venv aktiv ist.
@@ -222,7 +222,7 @@ python main.py --from-db --serve
 ```
 
 > **Hinweis:** Falls beim ersten Lauf die OSM-Layer `public_transport` oder `shops` leer bleiben
-> (406-Fehler von der Overpass API), kann in `src/paketstation/config.py` der Mirror gewechselt werden:
+> (406-Fehler von der Overpass API), kann in `src/config.py` der Mirror gewechselt werden:
 > `OVERPASS_URL = "https://overpass.kumi.systems/api/interpreter"`
 
 ---
@@ -309,8 +309,8 @@ bestehenden Station, kontinuierlich bis 1500 m) ist mit 21.5 % gleichauf mit der
 
 Der `score_total` ist **absolut** (0–100, zwischen Läufen vergleichbar), keine
 Re-Normalisierung auf das Maximum. Alle Distanzen in CH1903+/LV95 (EPSG:2056).
-Die AHP-Herleitung (Paarvergleichsmatrix) steht in `src/paketstation/config.py`,
-die Berechnung in `src/paketstation/ahp.py`.
+Die AHP-Herleitung (Paarvergleichsmatrix) steht in `src/config.py`,
+die Berechnung in `src/ahp.py`.
 
 ---
 

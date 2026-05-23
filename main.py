@@ -17,9 +17,9 @@ import os
 import sys
 import time
 
-from paketstation.config import DEFAULT_WEIGHTS, OUTPUT_DIR
-from paketstation.data_loader import load_all, summarize
-from paketstation.scoring import score_grid, top_candidates
+from config import DEFAULT_WEIGHTS, OUTPUT_DIR
+from data_loader import load_all, summarize
+from scoring import score_grid, top_candidates
 
 
 def parse_args():
@@ -105,7 +105,7 @@ def main():
     # DB-Engine
     engine = None
     if args.db or args.from_db:
-        from paketstation.db import create_schema, get_engine, test_connection
+        from db import create_schema, get_engine, test_connection
 
         engine = get_engine()
         if not test_connection(engine):
@@ -120,7 +120,7 @@ def main():
     summarize(layers)
 
     if args.db and not args.from_db:
-        from paketstation.db import save_all_layers
+        from db import save_all_layers
 
         print("  → Speichere Layer in PostGIS …")
         save_all_layers(layers, engine)
@@ -131,7 +131,7 @@ def main():
     top = top_candidates(scored, n=args.top, min_distance_m=args.min_dist)
 
     if args.db:
-        from paketstation.db import save_scored_grid
+        from db import save_scored_grid
 
         print("  → Speichere scored_grid in PostGIS …")
         save_scored_grid(scored, engine)
@@ -158,7 +158,7 @@ def main():
     print(f"  CSV:     {top_path}")
 
     if not args.no_map:
-        from paketstation.visualizer import build_map
+        from visualizer import build_map
 
         map_path = os.path.join(args.output_dir, "karte.html")
         build_map(scored, layers, top, output_path=map_path)
@@ -185,7 +185,7 @@ def main():
         print("  Docs:  http://localhost:8000/docs\n")
         import uvicorn
 
-        uvicorn.run("paketstation.api:app", host="127.0.0.1", port=8000, reload=False)
+        uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=False)
 
 
 if __name__ == "__main__":

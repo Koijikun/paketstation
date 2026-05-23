@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from folium.plugins import MarkerCluster, MiniMap
 
-from paketstation.config import OUTPUT_MAP_HTML
+from config import OUTPUT_MAP_HTML
 
 logger = logging.getLogger(__name__)
 
@@ -370,8 +370,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
     import os
 
-    from paketstation.data_loader import load_all
-    from paketstation.scoring import score_grid, top_candidates
+    from data_loader import load_all
+    from scoring import score_grid, top_candidates
 
     os.makedirs("output", exist_ok=True)
     layers = load_all(use_cache=True)

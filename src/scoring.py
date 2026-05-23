@@ -15,7 +15,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 from shapely.geometry import Point
 
-from paketstation.config import (
+from config import (
     BBOX,
     CRS_METRIC,
     CRS_WGS84,
@@ -348,7 +348,7 @@ def top_candidates(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
-    from paketstation.data_loader import load_all, summarize
+    from data_loader import load_all, summarize
 
     layers = load_all(use_cache=True)
     summarize(layers)

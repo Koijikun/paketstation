@@ -169,7 +169,7 @@ Ziel **neue, unterversorgte** Standorte sind. CR = 0.007 belegt widerspruchsfrei
 
 ## 12 · Qualitätssicherung & Reproduzierbarkeit
 
-- Sauberes Python-Package (src-Layout), Konfiguration über `.env` (keine Secrets im Code).
+- Sauber strukturierte Module unter `src/`, Konfiguration über `.env` (keine Secrets im Code).
 - Abgesicherte API (SQL-Parametrisierung, Tabellen-Allowlist, lokale Bindung).
 - Automatisierte Tests (pytest) + Linting/Formatierung (ruff); Lockfile für reproduzierbare Umgebung.
 

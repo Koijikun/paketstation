@@ -34,8 +34,12 @@ dev = [
     "ruff>=0.4.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+# Flache Top-Level-Module unter src/ (kein Package-Unterordner).
+[tool.setuptools]
+py-modules = ["ahp", "api", "config", "data_loader", "db", "scoring", "visualizer"]
+
+[tool.setuptools.package-dir]
+"" = "src"
 
 # ---------------------------------------------------------------------------
 # Ruff (Linter + Formatter)
