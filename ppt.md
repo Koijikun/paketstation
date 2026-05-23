@@ -57,10 +57,12 @@ Ausschließlich öffentlich verfügbare Geodaten.
 
 | Layer | Inhalt | Quelle |
 |---|---|---|
-| Bevölkerung | Einwohnerdichte je Stadtquartier (→ Ziel: STATPOP-Hektarraster) | BFS / Stadt Zürich |
+| Bevölkerung | Einwohnerdichte je Stadtquartier (→ Ziel: Grenzen aus OSM) | OpenStreetMap (Overpass) |
 | Mobilität (ÖV) | Haltestellen (Tram/Bus/Bahn) | OpenStreetMap (Overpass) |
-| Points of Interest | Detailhandel / Supermärkte / Convenience | OpenStreetMap |
+| Points of Interest | Detailhandel / Supermärkte / Convenience | OpenStreetMap (Overpass) |
 | Bestehendes Netz | Paketstationen & Filialen | Post „postoneweb" + OSM |
+
+*Sprechnotiz:* Datenbasis bewusst auf OpenStreetMap vereinheitlicht — einheitlich, reproduzierbar.
 
 *Sprechnotiz:* Aktuell 1712 ÖV-Halte, 363 Shops, 73 bestehende Standorte, 38 Quartiere.
 
@@ -88,21 +90,21 @@ Ausschließlich öffentlich verfügbare Geodaten.
 Gewichte werden **nicht frei gesetzt**, sondern aus paarweisen Vergleichen (Saaty-Skala 1–9)
 hergeleitet und auf Konsistenz geprüft.
 
-**Paarvergleichsmatrix (Auszug der Logik):**
-- ÖV wichtiger als Bevölkerung (H2), Bevölkerung wichtiger als Shops (H1), usw.
+**Logik der Paarvergleiche:** ÖV dominiert (H2); Konkurrenz/Gap und Bevölkerung gleichauf
+(Standortziel „Nachfrage **und** unterversorgt"); Shops und Fusswegnetz nachrangig.
 
-**Resultierende Gewichte (Consistency Ratio = 0.015 < 0.10 ✓ konsistent):**
+**Resultierende Gewichte (Consistency Ratio = 0.007 < 0.10 ✓ konsistent):**
 
 | Faktor | Gewicht |
 |---|---|
-| ÖV-Erreichbarkeit (Frequenz) | **41.7 %** |
-| Bevölkerungsdichte | **26.3 %** |
-| Nahversorgung (POI) | **16.0 %** |
-| Konkurrenz / Gap (H3) | **9.7 %** |
-| Fusswegnetz | **6.2 %** |
+| ÖV-Erreichbarkeit (Frequenz) | **37.5 %** |
+| Konkurrenz / Gap (unterversorgt) | **21.5 %** |
+| Bevölkerungsdichte | **21.5 %** |
+| Nahversorgung (POI) | **12.1 %** |
+| Fusswegnetz | **7.3 %** |
 
-*Sprechnotiz:* Trifft das Zielprofil „40 % Frequenz / 30 % Bevölkerung / 30 % POI". CR < 0.10 belegt,
-dass die Vergleiche widerspruchsfrei sind.
+*Sprechnotiz:* Der Gap-Faktor wurde bewusst hochgewichtet (gleichauf mit Bevölkerung), weil das
+Ziel **neue, unterversorgte** Standorte sind. CR = 0.007 belegt widerspruchsfreie Vergleiche.
 
 ---
 
@@ -110,6 +112,8 @@ dass die Vergleiche widerspruchsfrei sind.
 
 - **Gesamtscore = Σ(Teilscore × Gewicht)** — ein **absoluter** Wert (0–100), zwischen Läufen vergleichbar.
 - Keine künstliche Re-Normalisierung auf das Maximum → ehrliche, interpretierbare Werte.
+- **Gap-Faktor kalibriert:** Distanz zur nächsten Station kontinuierlich bis **1500 m**
+  (zuvor 500 m → 77 % aller Punkte am Maximum, dadurch wirkungslos).
 - **Top-Standorte:** Sortierung nach Score mit Mindestabstand (500 m), um Cluster zu vermeiden.
 
 *Sprechnotiz:* Karte, CSV und Datenbank zeigen denselben Score (durchgängige Konsistenz).
@@ -131,14 +135,39 @@ dass die Vergleiche widerspruchsfrei sind.
 ## 10 · Ergebnisse
 
 - **1804 bewertete Rasterpunkte** (300 m) über das Stadtgebiet.
-- **Top-Kandidaten (AHP):** u. a. *Werd*, *Langstrasse*, *Mühlebach* — dichte, ÖV-starke Lagen.
-- Interaktive Potenzial-Karte: Heatmap des Eignungsscores + Top-Standorte + Rohdaten-Layer.
+- **Top-Kandidaten:** *Werd*, *Langstrasse*, *Mühlebach* (Score ~84–85) — dichte, ÖV-starke
+  Lagen, die ~390–540 m von der nächsten bestehenden Station entfernt sind.
+- Interaktive Potenzial-Karte: Heatmap des Eignungsscores + Top-Standorte + Rohdaten-Layer
+  + Live-Gewichtungs-Slider.
+
+| Rang | Quartier | Score | ÖV | Bev. | Gap | nächste Station |
+|---|---|---|---|---|---|---|
+| 1 | Werd | 85 | 100 | 96 | 33 | 498 m |
+| 2 | Langstrasse | 85 | 100 | 93 | 36 | 537 m |
+| 4 | Mühlebach | 84 | 100 | 91 | 33 | 488 m |
 
 *Sprechnotiz:* Live-Demo unter `http://localhost:8000`. Slider erlauben „Was-wäre-wenn"-Gewichtung.
 
 ---
 
-## 11 · Qualitätssicherung & Reproduzierbarkeit
+## 11 · Schlüssel-Erkenntnisse
+
+- **Datenqualität schlägt Modell:** Der Gap-Faktor war anfangs durch eine zu kleine
+  Sättigungsdistanz (500 m) **wirkungslos** — 77 % der Stadt erreichten den Maximalwert.
+  Erst die Kalibrierung auf 1500 m machte „unterversorgt" sichtbar.
+- **AHP bringt Nachvollziehbarkeit:** Gewichte sind hergeleitet (CR = 0.007), nicht geraten;
+  die Hypothesen (H1–H3) sind direkt in den Paarvergleichen abgebildet.
+- **Nachfrage dominiert die Spitze:** Selbst bei hohem Gap-Gewicht (21.5 %) führen die
+  nachfragestärksten Quartiere — weil deren ÖV-/Bevölkerungswerte überragend sind. Reine
+  Umgewichtung surft die „größten Lücken" nicht automatisch nach oben.
+- **Konsequenz:** „Eignungspotenzial" und „unterversorgte Lücke" sind **zwei Fragen**;
+  letztere braucht eine eigene Gap-Auswertung (harter Ausschluss-Puffer), nicht nur Gewichte.
+
+*Sprechnotiz:* Das ist die wichtigste methodische Lehre — sie rechtfertigt die nächsten Ausbaustufen.
+
+---
+
+## 12 · Qualitätssicherung & Reproduzierbarkeit
 
 - Sauberes Python-Package (src-Layout), Konfiguration über `.env` (keine Secrets im Code).
 - Abgesicherte API (SQL-Parametrisierung, Tabellen-Allowlist, lokale Bindung).
@@ -148,26 +177,28 @@ dass die Vergleiche widerspruchsfrei sind.
 
 ---
 
-## 12 · Limitationen & Ausblick
+## 13 · Limitationen & Ausblick
 
 **Aktuelle Limitationen:**
-- Bevölkerung als Quartier-Centroid-Näherung (noch kein echtes Hektarraster).
-- ÖV als Halte-Anzahl im Luftlinienradius (noch keine Gehzeit-Isochronen/Fahrplanfrequenz).
+- Bevölkerung noch als Quartier-Näherung (38 Werte), nicht feinräumig.
+- ÖV als Halte-*Anzahl* im Luftlinienradius (noch keine Typgewichtung/Gehzeit).
+- Nachfrage dominiert die Spitze → „größte Lücken" noch nicht als eigene Sicht.
 
-**Ausblick (geplante Ausbaustufen):**
-- **STATPOP-Hektarraster** statt Quartier-Centroids (feinere Bevölkerungsauflösung).
-- **OSMnx-Isochronen** + Fahrplanfrequenz (ZVV/SBB) für realistische Erreichbarkeit.
-- **Hypothesen-Validierung** (H1–H3 statistisch) und explizite Gap-Analyse.
+**Ausblick (geplante Ausbaustufen — alle aus OpenStreetMap):**
+- **Bevölkerung aus OSM** (Quartier-/Stadtkreis-Grenzen statt hartkodierter Punkte) + räumlicher Join.
+- **ÖV-Typgewichtung** aus OSM (Tram/Bahn > Bus), optional Fußweg-Isochronen.
+- **Explizite Gap-Analyse** (Nachfrage **und** unterversorgt) + Hypothesen-Validierung (H1–H3).
 
 ---
 
-## 13 · Datenquellen & Lizenzen
+## 14 · Datenquellen & Lizenzen
 
 | Datensatz | Quelle | Lizenz |
 |---|---|---|
-| Bevölkerung (Quartier / STATPOP) | BFS / Statistik Stadt Zürich | OGD / CC BY |
 | ÖV-Haltestellen | OpenStreetMap (Overpass) | ODbL |
-| Supermärkte / POI | OpenStreetMap | ODbL |
+| Supermärkte / POI | OpenStreetMap (Overpass) | ODbL |
+| Bevölkerung (geplant: Grenzen) | OpenStreetMap (Overpass) | ODbL |
 | Paketstationen / Filialen | Post „postoneweb" + OSM | ODbL / OGD |
 
-*Sprechnotiz:* Alle Daten öffentlich und frei nutzbar; Verarbeitung in CH1903+/LV95 (EPSG:2056).
+*Sprechnotiz:* Datenbasis bewusst auf **OpenStreetMap** vereinheitlicht (reproduzierbar via Overpass);
+Verarbeitung in CH1903+/LV95 (EPSG:2056).
