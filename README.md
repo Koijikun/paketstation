@@ -279,6 +279,7 @@ pip freeze --exclude-editable > requirements.lock
 | `GET /` | Interaktive Leaflet-Karte |
 | `GET /api/grid?min_score=30` | Bewertetes Raster als GeoJSON |
 | `GET /api/top?n=10` | Top-N Kandidaten |
+| `GET /api/weights` | AHP-Standardgewichte + Consistency Ratio |
 | `GET /api/pt` | ÖV-Haltestellen |
 | `GET /api/shops` | Supermärkte |
 | `GET /api/lockers` | Bestehende Paketstationen |
@@ -290,15 +291,23 @@ pip freeze --exclude-editable > requirements.lock
 
 ## Scoring-Modell
 
-| Faktor | Methode | Radius | Std.-Gewicht |
-|---|---|---|---|
-| Bevölkerungsdichte | EW/ha des nächsten BFS-Quartiers | — | 3 |
-| ÖV-Erreichbarkeit | Haltestellen im Radius | 400 m | 3 |
-| Nahversorgung | Supermärkte im Radius | 600 m | 2 |
-| Konkurrenz (neg.) | Distanz zur nächsten Paketstation | — | 2 |
-| Fusswegnetz-Proxy | POI-Dichte im Radius | 300 m | 2 |
+Der Gesamtscore ist ein gewichteter Mittelwert von fünf Teilscores (jeweils 0–100).
+Die Gewichte werden über das **AHP-Verfahren** (Analytic Hierarchy Process, Saaty) aus
+paarweisen Vergleichen hergeleitet und auf Konsistenz geprüft (**CR ≈ 0.015 < 0.10**).
+Per CLI (`--weights`) bzw. über die Slider in der Karte sind sie überschreibbar.
 
-Alle Distanzen in CH1903+/LV95 (EPSG:2056).
+| Faktor | Methode | Radius | AHP-Gewicht |
+|---|---|---|---|
+| ÖV-Erreichbarkeit | Haltestellen im Radius | 400 m | **41.7 %** |
+| Bevölkerungsdichte | EW/ha des nächsten BFS-Quartiers | — | **26.3 %** |
+| Nahversorgung | Supermärkte im Radius | 600 m | **16.0 %** |
+| Konkurrenz (neg.) | Distanz zur nächsten Paketstation | — | **9.7 %** |
+| Fusswegnetz-Proxy | POI-Dichte im Radius | 300 m | **6.2 %** |
+
+Der `score_total` ist **absolut** (0–100, zwischen Läufen vergleichbar), keine
+Re-Normalisierung auf das Maximum. Alle Distanzen in CH1903+/LV95 (EPSG:2056).
+Die AHP-Herleitung (Paarvergleichsmatrix) steht in `src/paketstation/config.py`,
+die Berechnung in `src/paketstation/ahp.py`.
 
 ---
 

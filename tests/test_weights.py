@@ -37,5 +37,6 @@ def test_invalid_values_are_ignored():
 
 
 def test_does_not_mutate_default():
+    before = DEFAULT_WEIGHTS["population"]
     parse_weights("pop=99")
-    assert DEFAULT_WEIGHTS["population"] == 3
+    assert DEFAULT_WEIGHTS["population"] == before

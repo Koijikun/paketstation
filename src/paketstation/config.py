@@ -2,6 +2,8 @@
 config.py – Zentrale Konfiguration für die Paketstation-Standortanalyse Zürich
 """
 
+from paketstation.ahp import derive_weights
+
 # ---------------------------------------------------------------------------
 # Untersuchungsgebiet
 # ---------------------------------------------------------------------------
@@ -28,15 +30,38 @@ RADIUS_COMPETE_M = 500  # Bestehende Paketstationen (Konkurrenz)
 RADIUS_WALK_M = 300  # Fusswegnetz-Proxy (allg. POI-Dichte)
 
 # ---------------------------------------------------------------------------
-# Scoring-Gewichte (können später per CLI überschrieben werden)
+# Scoring-Gewichte – hergeleitet über AHP (Analytic Hierarchy Process)
 # ---------------------------------------------------------------------------
-DEFAULT_WEIGHTS = {
-    "population": 3,  # Bevölkerungsdichte
-    "public_transport": 3,  # ÖV-Erreichbarkeit
-    "shops": 2,  # Nahversorgung
-    "competition": 2,  # Konkurrenz (wird invertiert)
-    "walkability": 2,  # Fusswegnetz
+# Die Gewichte werden NICHT mehr frei gesetzt, sondern aus paarweisen Vergleichen
+# der Faktoren abgeleitet (Saaty-Skala 1–9) und auf Konsistenz geprüft (CR < 0.10).
+#
+# Begründung der Vergleiche (aus den Forschungshypothesen):
+#   H2  ÖV-Knotenpunkte > Wohnortnähe  → public_transport ist dominanter Faktor
+#   H1  Wohndichte = Basispotenzial    → population zweitwichtigster Treiber
+#   Präsentation: 40 % Frequenz / 30 % Bevölkerung / 30 % POI
+#   competition (Gap-Analyse, H3) als Korrektiv; walkability als schwacher POI-Proxy
+#
+# Ergebnis (CR ≈ 0.015): ÖV 41.7 % · Bevölkerung 26.3 % · Shops 16.0 %
+#                        · Konkurrenz 9.7 % · Walkability 6.2 %  → trifft 40/30/30.
+# Per CLI (--weights) bleiben die Gewichte überschreibbar.
+
+AHP_FACTORS = ["public_transport", "population", "shops", "competition", "walkability"]
+
+# Obere Dreiecksmatrix: wie viel wichtiger ist Zeile gegenüber Spalte (Saaty 1–9).
+AHP_JUDGMENTS = {
+    ("public_transport", "population"): 2,
+    ("public_transport", "shops"): 3,
+    ("public_transport", "competition"): 4,
+    ("public_transport", "walkability"): 5,
+    ("population", "shops"): 2,
+    ("population", "competition"): 3,
+    ("population", "walkability"): 4,
+    ("shops", "competition"): 2,
+    ("shops", "walkability"): 3,
+    ("competition", "walkability"): 2,
 }
+
+DEFAULT_WEIGHTS, AHP_CONSISTENCY_RATIO = derive_weights(AHP_FACTORS, AHP_JUDGMENTS)
 
 # ---------------------------------------------------------------------------
 # OSM Overpass – Abfragen

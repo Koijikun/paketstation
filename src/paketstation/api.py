@@ -22,6 +22,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from paketstation.config import AHP_CONSISTENCY_RATIO, DEFAULT_WEIGHTS
 from paketstation.db import (
     get_engine,
     load_geojson_for_api,
@@ -69,6 +70,19 @@ def get_layers():
     except Exception:
         logger.exception("Fehler bei API-Anfrage")
         raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
+
+
+@app.get("/api/weights", summary="AHP-Standardgewichte")
+def get_weights():
+    """
+    Gibt die per AHP hergeleiteten Standardgewichte (Summe = 1) und die
+    Consistency Ratio zurück. Das Frontend initialisiert damit die Slider, sodass
+    die Default-Ansicht der Karte exakt dem gespeicherten Score (CSV/DB) entspricht.
+    """
+    return {
+        "weights": DEFAULT_WEIGHTS,
+        "consistency_ratio": round(AHP_CONSISTENCY_RATIO, 4),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -274,11 +288,11 @@ def get_map():
           </span>
         </div>
       </h3>
-      <div class="weight-row"><span class="weight-label">Bevölkerung</span><input type="range" id="w-pop" min="0" max="5" step="1" value="3"><span class="weight-val" id="wv-pop">3</span></div>
-      <div class="weight-row"><span class="weight-label">ÖV-Haltestellen</span><input type="range" id="w-pt" min="0" max="5" step="1" value="3"><span class="weight-val" id="wv-pt">3</span></div>
-      <div class="weight-row"><span class="weight-label">Supermärkte</span><input type="range" id="w-shop" min="0" max="5" step="1" value="2"><span class="weight-val" id="wv-shop">2</span></div>
-      <div class="weight-row"><span class="weight-label">Konkurrenz (neg.)</span><input type="range" id="w-comp" min="0" max="5" step="1" value="2"><span class="weight-val" id="wv-comp">2</span></div>
-      <div class="weight-row"><span class="weight-label">Fusswegnetz</span><input type="range" id="w-walk" min="0" max="5" step="1" value="2"><span class="weight-val" id="wv-walk">2</span></div>
+      <div class="weight-row"><span class="weight-label">Bevölkerung</span><input type="range" id="w-pop" min="0" max="50" step="0.1" value="26.3"><span class="weight-val" id="wv-pop">26%</span></div>
+      <div class="weight-row"><span class="weight-label">ÖV-Haltestellen</span><input type="range" id="w-pt" min="0" max="50" step="0.1" value="41.7"><span class="weight-val" id="wv-pt">42%</span></div>
+      <div class="weight-row"><span class="weight-label">Supermärkte</span><input type="range" id="w-shop" min="0" max="50" step="0.1" value="16"><span class="weight-val" id="wv-shop">16%</span></div>
+      <div class="weight-row"><span class="weight-label">Konkurrenz (neg.)</span><input type="range" id="w-comp" min="0" max="50" step="0.1" value="9.7"><span class="weight-val" id="wv-comp">10%</span></div>
+      <div class="weight-row"><span class="weight-label">Fusswegnetz</span><input type="range" id="w-walk" min="0" max="50" step="0.1" value="6.2"><span class="weight-val" id="wv-walk">6%</span></div>
     </div>
     <div class="s-section">
       <h3>
@@ -362,9 +376,38 @@ const weights = {
   walk: document.getElementById('w-walk')
 };
 
+// Präzise Gewichtswerte (in %). Werden beim Start aus /api/weights (AHP)
+// gesetzt, damit die Default-Karte exakt dem gespeicherten Score entspricht.
+const weightValues = { pop: 26.3, pt: 41.7, shop: 16, comp: 9.7, walk: 6.2 };
+
+// Mapping API-Faktor -> Slider-Key
+const API_TO_SLIDER = {
+  population: 'pop', public_transport: 'pt', shops: 'shop',
+  competition: 'comp', walkability: 'walk'
+};
+
+function setWeightLabel(k) {
+  document.getElementById('wv-'+k).textContent = Math.round(weightValues[k]) + '%';
+}
+
+async function loadWeights() {
+  try {
+    const res = await fetch(`${API}/api/weights`);
+    const data = await res.json();
+    for (const [factor, w] of Object.entries(data.weights || {})) {
+      const k = API_TO_SLIDER[factor];
+      if (!k) continue;
+      weightValues[k] = w * 100;          // präzise (z.B. 41.74)
+      weights[k].value = (w * 100).toFixed(1);
+    }
+  } catch (e) { /* Default-Werte beibehalten */ }
+  Object.keys(weights).forEach(setWeightLabel);
+}
+
 Object.keys(weights).forEach(k => {
   weights[k].addEventListener('input', e => {
-    document.getElementById('wv-'+k).textContent = e.target.value;
+    weightValues[k] = parseFloat(e.target.value);  // Live-What-if (überschreibt AHP)
+    setWeightLabel(k);
     updateAnalysis();
   });
 });
@@ -414,12 +457,14 @@ function popupHTML(p) {
 function updateAnalysis() {
   if (!rawGridData) return;
   
+  // Präzise Gewichte (in %). Der Score ist ein gewichteter Mittelwert, daher
+  // ist die Einheit (% oder Anteil) irrelevant – nur die Verhältnisse zählen.
   const w = {
-    pop:  parseInt(weights.pop.value),
-    pt:   parseInt(weights.pt.value),
-    shop: parseInt(weights.shop.value),
-    comp: parseInt(weights.comp.value),
-    walk: parseInt(weights.walk.value)
+    pop:  weightValues.pop,
+    pt:   weightValues.pt,
+    shop: weightValues.shop,
+    comp: weightValues.comp,
+    walk: weightValues.walk
   };
   const totalW = w.pop + w.pt + w.shop + w.comp + w.walk;
   
@@ -533,6 +578,7 @@ async function init() {
     document.getElementById('badge').textContent = 'LIVE';
     document.getElementById('badge').className = 'badge badge-ok';
 
+    await loadWeights();   // AHP-Gewichte VOR dem ersten Scoring laden
     await Promise.all([loadGrid(), loadPT(), loadShops(), loadLockers()]);
   } catch(e) {
     document.getElementById('api-status').textContent = 'FEHLER: ' + e.message;
