@@ -10,14 +10,14 @@ Erzeugt eine HTML-Karte mit:
 """
 
 import logging
-import folium
-from folium.plugins import MarkerCluster, MiniMap
-import geopandas as gpd
-import pandas as pd
-import numpy as np
-import branca.colormap as cm
 
-from config import OUTPUT_MAP_HTML
+import folium
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+from folium.plugins import MarkerCluster, MiniMap
+
+from paketstation.config import OUTPUT_MAP_HTML
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +26,15 @@ logger = logging.getLogger(__name__)
 # Farbskalierung
 # ---------------------------------------------------------------------------
 
+
 def _score_to_color(score: float) -> str:
     """Gibt einen Hex-Farbwert für einen Score (0–100) zurück."""
     # Grün (niedrig) → Gelb (mittel) → Rot (hoch)
     stops = [
-        (0,   "#1a3a2a"),
-        (25,  "#4a7c59"),
-        (50,  "#c8a96e"),
-        (75,  "#d4713a"),
+        (0, "#1a3a2a"),
+        (25, "#4a7c59"),
+        (50, "#c8a96e"),
+        (75, "#d4713a"),
         (100, "#c0392b"),
     ]
     for i in range(len(stops) - 1):
@@ -59,6 +60,7 @@ def _rank_color(rank: int) -> str:
 # ---------------------------------------------------------------------------
 # Haupt-Visualisierungsfunktion
 # ---------------------------------------------------------------------------
+
 
 def build_map(
     scored: gpd.GeoDataFrame,
@@ -233,6 +235,7 @@ def build_map(
 # Popup-Templates
 # ---------------------------------------------------------------------------
 
+
 def _grid_popup(row: pd.Series) -> str:
     def bar(val):
         w = int(val)
@@ -240,30 +243,30 @@ def _grid_popup(row: pd.Series) -> str:
         return (
             f'<div style="background:#1e2128;border-radius:2px;height:6px;margin:2px 0 6px">'
             f'<div style="width:{w}%;height:100%;background:{color};border-radius:2px"></div>'
-            f'</div>'
+            f"</div>"
         )
 
     return f"""
     <div style="font-family:monospace;font-size:11px;color:#c8c2b0;background:#13161e;
                 padding:12px;border-radius:4px;min-width:220px">
         <div style="font-size:22px;color:#c8a96e;text-align:center;margin-bottom:4px">
-            {row['score_total']:.0f}
+            {row["score_total"]:.0f}
         </div>
         <div style="font-size:9px;color:#555;text-align:center;margin-bottom:10px;
                     letter-spacing:0.1em">GESAMT-SCORE</div>
-        <div style="color:#666;margin-bottom:6px">{row.get('nearest_quartier','')}</div>
+        <div style="color:#666;margin-bottom:6px">{row.get("nearest_quartier", "")}</div>
         <div style="color:#666;font-size:10px">Bevölkerung</div>
-        {bar(row['score_pop'])}
+        {bar(row["score_pop"])}
         <div style="color:#666;font-size:10px">ÖV-Erreichbarkeit</div>
-        {bar(row['score_pt'])}
+        {bar(row["score_pt"])}
         <div style="color:#666;font-size:10px">Nahversorgung</div>
-        {bar(row['score_shops'])}
+        {bar(row["score_shops"])}
         <div style="color:#666;font-size:10px">Konkurrenz-Abstand</div>
-        {bar(row['score_competition'])}
+        {bar(row["score_competition"])}
         <div style="color:#666;font-size:10px">Fusswegnetz</div>
-        {bar(row['score_walkability'])}
+        {bar(row["score_walkability"])}
         <div style="color:#444;font-size:9px;margin-top:6px">
-            Nächste Station: {row.get('nearest_station_m', '–')} m
+            Nächste Station: {row.get("nearest_station_m", "–")} m
         </div>
     </div>
     """
@@ -275,11 +278,11 @@ def _top_popup(row: pd.Series) -> str:
     color = _rank_color(rank)
 
     factors = [
-        ("Bevölkerung",       row["score_pop"]),
-        ("ÖV-Haltestellen",   row["score_pt"]),
-        ("Nahversorgung",     row["score_shops"]),
-        ("Konkurrenz-Abst.",  row["score_competition"]),
-        ("Fusswegnetz",       row["score_walkability"]),
+        ("Bevölkerung", row["score_pop"]),
+        ("ÖV-Haltestellen", row["score_pt"]),
+        ("Nahversorgung", row["score_shops"]),
+        ("Konkurrenz-Abst.", row["score_competition"]),
+        ("Fusswegnetz", row["score_walkability"]),
     ]
     rows_html = "".join(
         f'<tr><td style="color:#666;padding:2px 8px 2px 0">{k}</td>'
@@ -296,7 +299,7 @@ def _top_popup(row: pd.Series) -> str:
                         font-weight:bold;color:#0f1117;font-size:14px">#{rank}</div>
             <div>
                 <div style="color:#c8a96e;font-size:13px">
-                    {row.get('nearest_quartier', 'Zürich')}
+                    {row.get("nearest_quartier", "Zürich")}
                 </div>
                 <div style="color:#555;font-size:9px">Score: {score:.0f}/100</div>
             </div>
@@ -304,8 +307,8 @@ def _top_popup(row: pd.Series) -> str:
         <table style="border-collapse:collapse;width:100%">{rows_html}</table>
         <div style="color:#444;font-size:9px;margin-top:8px;border-top:1px solid #2a2d35;
                     padding-top:6px">
-            Koordinaten: {row['lat']:.4f}°N, {row['lon']:.4f}°E<br>
-            Nächste Paketstation: {row.get('nearest_station_m', '–')} m
+            Koordinaten: {row["lat"]:.4f}°N, {row["lon"]:.4f}°E<br>
+            Nächste Paketstation: {row.get("nearest_station_m", "–")} m
         </div>
     </div>
     """
@@ -315,6 +318,7 @@ def _top_popup(row: pd.Series) -> str:
 # Legende
 # ---------------------------------------------------------------------------
 
+
 def _legend_html(top: gpd.GeoDataFrame) -> str:
     top_rows = ""
     for _, row in top.head(5).iterrows():
@@ -323,9 +327,9 @@ def _legend_html(top: gpd.GeoDataFrame) -> str:
         top_rows += (
             f'<div style="display:flex;justify-content:space-between;'
             f'margin-bottom:4px;font-size:10px">'
-            f'<span style="color:{color}">#{rank} {row.get("nearest_quartier","")[:20]}</span>'
+            f'<span style="color:{color}">#{rank} {row.get("nearest_quartier", "")[:20]}</span>'
             f'<span style="color:#c8a96e">{row["score_total"]:.0f}</span>'
-            f'</div>'
+            f"</div>"
         )
 
     return f"""
@@ -364,9 +368,10 @@ def _legend_html(top: gpd.GeoDataFrame) -> str:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
-    from data_loader import load_all
-    from scoring import score_grid, top_candidates
     import os
+
+    from paketstation.data_loader import load_all
+    from paketstation.scoring import score_grid, top_candidates
 
     os.makedirs("output", exist_ok=True)
     layers = load_all(use_cache=True)

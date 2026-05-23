@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paketstation"
+version = "1.0.0"
+description = "Datenbasiertes Scoring-Modell zur Identifikation optimaler Paketstation-Standorte in Zürich"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    "geopandas>=0.14.0",
+    "shapely>=2.0.0",
+    "pyproj>=3.6.0",
+    "scipy>=1.11.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "requests>=2.31.0",
+    "folium>=0.15.0",
+    "branca>=0.7.0",
+    "sqlalchemy>=2.0.0",
+    "geoalchemy2>=0.14.0",
+    "psycopg2-binary>=2.9.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ---------------------------------------------------------------------------
+# Ruff (Linter + Formatter)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # Zeilenlänge wird vom Formatter gehandhabt
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]  # "." => main.py (Root-Launcher) ist importierbar
+addopts = "-ra"

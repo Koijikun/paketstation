@@ -10,49 +10,86 @@ Verantwortlichkeiten:
 
 import json
 import logging
+import os
+
 import geopandas as gpd
 import pandas as pd
-from sqlalchemy import create_engine, text, Engine
+from dotenv import load_dotenv
+from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.engine import URL
 from sqlalchemy.exc import OperationalError
 
+# .env (falls vorhanden) laden – ueberschreibt keine bereits gesetzten Umgebungsvariablen
+load_dotenv()
+
 logger = logging.getLogger(__name__)
+
+# Tabellennamen können in SQL nicht als gebundene Parameter übergeben werden.
+# Daher gegen eine feste Allowlist prüfen (Schutz gegen SQL-Injection über den
+# Tabellen-Parameter). Werte (min_score, limit, n) werden gebunden übergeben.
+ALLOWED_TABLES = frozenset(
+    {
+        "public_transport",
+        "shops",
+        "parcel_lockers",
+        "quartiere",
+        "scored_grid",
+    }
+)
+
+
+def _validate_table(table: str) -> str:
+    """Stellt sicher, dass ein Tabellenname in der Allowlist steht."""
+    if table not in ALLOWED_TABLES:
+        raise ValueError(f"Unzulässiger Tabellenname '{table}'. Erlaubt: {sorted(ALLOWED_TABLES)}")
+    return table
 
 
 # ---------------------------------------------------------------------------
 # Verbindung
 # ---------------------------------------------------------------------------
 
+
 def get_engine(
-    host: str     = "localhost",
-    port: int     = 5432,
-    db: str       = "paketstation",
-    user: str     = "postgres",
-    password: str = "paket",
+    host: str | None = None,
+    port: int | None = None,
+    db: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
 ) -> Engine:
     """
     Erstellt eine SQLAlchemy-Engine für PostgreSQL/PostGIS.
 
-    Alle Parameter können über Umgebungsvariablen überschrieben werden:
-        PG_HOST, PG_PORT, PG_DB, PG_USER, PG_PASSWORD
+    Konfiguration erfolgt über Umgebungsvariablen (bzw. eine .env-Datei).
+    Explizit übergebene Argumente haben Vorrang vor den Umgebungsvariablen:
+        PG_HOST  (Standard: localhost)
+        PG_PORT  (Standard: 5432)
+        PG_DB    (Standard: paketstation)
+        PG_USER  (Standard: postgres)
+        PG_PASSWORD  (kein Standard – muss gesetzt werden, falls erforderlich)
+
+    Es gibt bewusst KEIN hartkodiertes Standard-Passwort. Lege ein Passwort
+    in der .env-Datei (PG_PASSWORD=…) oder als Umgebungsvariable ab.
 
     Returns
     -------
     sqlalchemy.Engine
     """
-    import os
-    host     = os.getenv("PG_HOST",     host)
-    port     = int(os.getenv("PG_PORT", port))
-    db       = os.getenv("PG_DB",       db)
-    user     = os.getenv("PG_USER",     user)
-    password = os.getenv("PG_PASSWORD", password)
+    host = host or os.getenv("PG_HOST", "localhost")
+    port = int(port if port is not None else os.getenv("PG_PORT", "5432"))
+    db = db or os.getenv("PG_DB", "paketstation")
+    user = user or os.getenv("PG_USER", "postgres")
+    password = password if password is not None else os.getenv("PG_PASSWORD")
 
-    # URL-Zusammensetzung (flexibel, falls User/Passwort leer)
-    if user:
-        auth = f"{user}:{password}@" if password else f"{user}@"
-    else:
-        auth = ""
-
-    url = f"postgresql+psycopg2://{auth}{host}:{port}/{db}"
+    # URL.create kodiert Sonderzeichen in User/Passwort korrekt (z.B. @ : /)
+    url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=user or None,
+        password=password or None,
+        host=host,
+        port=port,
+        database=db,
+    )
     engine = create_engine(url, pool_pre_ping=True)
     logger.info(f"DB-Engine erstellt: {host}:{port}/{db}")
     return engine
@@ -165,6 +202,7 @@ def create_schema(engine: Engine) -> None:
 # Schreiben
 # ---------------------------------------------------------------------------
 
+
 def save_layer(
     gdf: gpd.GeoDataFrame,
     table: str,
@@ -173,9 +211,10 @@ def save_layer(
 ) -> None:
     """
     Schreibt ein GeoDataFrame in eine PostGIS-Tabelle.
-    Bei 'replace' wird die Tabelle geleert (TRUNCATE), aber das Schema 
+    Bei 'replace' wird die Tabelle geleert (TRUNCATE), aber das Schema
     (Primary Keys, Indizes) bleibt erhalten.
     """
+    table = _validate_table(table)
     if gdf is None or gdf.empty:
         logger.warning(f"  Layer '{table}' ist leer – wird übersprungen")
         return
@@ -210,34 +249,32 @@ def save_scored_grid(scored: gpd.GeoDataFrame, engine: Engine) -> None:
 # Lesen
 # ---------------------------------------------------------------------------
 
-def load_layer(table: str, engine: Engine, where: str = "") -> gpd.GeoDataFrame:
+
+def load_layer(table: str, engine: Engine) -> gpd.GeoDataFrame:
     """
-    Liest eine PostGIS-Tabelle als GeoDataFrame.
+    Liest eine PostGIS-Tabelle (aus der Allowlist) als GeoDataFrame.
 
     Parameters
     ----------
-    table  : Tabellenname
+    table  : Tabellenname (muss in ALLOWED_TABLES stehen)
     engine : SQLAlchemy-Engine
-    where  : optionale WHERE-Klausel, z.B. "score_total >= 50"
     """
-    sql = f"SELECT * FROM {table}"
-    if where:
-        sql += f" WHERE {where}"
-
-    gdf = gpd.read_postgis(sql, engine, geom_col="geometry")
+    table = _validate_table(table)
+    # Tabellenname über Allowlist abgesichert – sichere Interpolation.
+    gdf = gpd.read_postgis(f"SELECT * FROM {table}", engine, geom_col="geometry")
     logger.info(f"  Gelesen: {len(gdf)} Zeilen aus '{table}'")
     return gdf
 
 
 def load_top_candidates(engine: Engine, n: int = 10) -> gpd.GeoDataFrame:
     """Liest die Top-N Rasterpunkte nach score_total."""
-    sql = f"""
+    sql = text("""
         SELECT *, ROW_NUMBER() OVER (ORDER BY score_total DESC) AS rank
         FROM scored_grid
         ORDER BY score_total DESC
-        LIMIT {n}
-    """
-    return gpd.read_postgis(sql, engine, geom_col="geometry")
+        LIMIT :n
+    """)
+    return gpd.read_postgis(sql, engine, geom_col="geometry", params={"n": int(n)})
 
 
 def load_geojson_for_api(
@@ -250,8 +287,15 @@ def load_geojson_for_api(
     Gibt eine GeoJSON FeatureCollection als String zurück
     (direkt verwendbar in der Leaflet-Karte / FastAPI).
     """
-    score_filter = f"AND score_total >= {min_score}" if "score" in table else ""
-    sql = f"""
+    table = _validate_table(table)
+    params = {"limit": int(limit)}
+    # Score-Filter nur für Tabellen mit score_total-Spalte (gebundener Parameter)
+    score_filter = ""
+    if table == "scored_grid":
+        score_filter = "AND score_total >= :min_score"
+        params["min_score"] = float(min_score)
+
+    sql = text(f"""
         SELECT json_build_object(
             'type', 'FeatureCollection',
             'features', json_agg(
@@ -266,11 +310,11 @@ def load_geojson_for_api(
             SELECT * FROM {table}
             WHERE 1=1 {score_filter}
             ORDER BY id
-            LIMIT {limit}
+            LIMIT :limit
         ) t
-    """
+    """)
     with engine.connect() as conn:
-        result = conn.execute(text(sql)).fetchone()
+        result = conn.execute(sql, params).fetchone()
         if result and result[0]:
             # Falls features null ist (0 Zeilen), leere Collection zurückgeben
             data = result[0]
@@ -283,6 +327,7 @@ def load_geojson_for_api(
 # ---------------------------------------------------------------------------
 # Hilfsfunktionen
 # ---------------------------------------------------------------------------
+
 
 def table_info(engine: Engine) -> pd.DataFrame:
     """Gibt eine Übersicht aller Tabellen mit Zeilenanzahl zurück."""

@@ -10,17 +10,19 @@ mit PostGIS-Backend und FastAPI-basierter Live-Karte.
 
 ```
 paketstation/
-├── main.py                  # Einstiegspunkt (CLI)
-├── requirements.txt
+├── main.py                      # Einstiegspunkt (CLI)
+├── pyproject.toml               # Package-Definition, Abhängigkeiten, Tooling
+├── .env.example                 # Vorlage für DB-Zugangsdaten (→ .env kopieren)
 ├── src/
-│   ├── config.py            # Konstanten, Gewichte, BFS-Daten, OSM-Queries
-│   ├── data_loader.py       # Overpass API + BFS + PostGIS-Lesezugriff
-│   ├── scoring.py           # Rastergenerierung + ScoringEngine (cKDTree)
-│   ├── visualizer.py        # Folium-Karte (statische HTML-Ausgabe)
-│   ├── db.py                # PostGIS: Verbindung, Schema, Lesen/Schreiben
-│   └── api.py               # FastAPI: GeoJSON-Endpoints + Live-Karte
-├── data/                    # GeoJSON-Cache (auto-generiert)
-└── output/                  # Ausgaben (auto-generiert)
+│   └── paketstation/            # Python-Package (src-Layout)
+│       ├── config.py            # Konstanten, Gewichte, BFS-Daten, OSM-Queries
+│       ├── data_loader.py       # Overpass API + BFS + PostGIS-Lesezugriff
+│       ├── scoring.py           # Rastergenerierung + ScoringEngine (cKDTree)
+│       ├── visualizer.py        # Folium-Karte (statische HTML-Ausgabe)
+│       ├── db.py                # PostGIS: Verbindung, Schema, Lesen/Schreiben
+│       └── api.py               # FastAPI: GeoJSON-Endpoints + Live-Karte
+├── data/                        # Eingabedaten + GeoJSON-Cache (Cache auto-generiert)
+└── output/                      # Ausgaben (auto-generiert, nicht versioniert)
     ├── karte.html
     ├── scored_grid.geojson
     └── top_standorte.csv
@@ -132,12 +134,24 @@ pyenv local 3.11.9
 
 ### 5. Virtual Environment erstellen
 
+> **Wichtig:** Das `venv/`-Verzeichnis ist **nicht** Teil des Repositories (siehe `.gitignore`).
+> Es ist plattform- und maschinenspezifisch und muss auf **jeder Workstation lokal neu
+> erstellt** werden. Niemals einchecken.
+
 **macOS / Linux:**
 ```bash
 cd pfad/zu/paketstation
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -e .
+```
+
+**Windows (PowerShell):**
+```powershell
+cd pfad\zu\paketstation
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -e .
 ```
 
 **Windows (CMD):**
@@ -145,33 +159,48 @@ pip install -r requirements.txt
 cd pfad\zu\paketstation
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
+Das Projekt nutzt ein **src-Layout** (Package unter `src/paketstation/`). Der editierbare
+Install (`pip install -e .`) macht das Package importierbar – ohne ihn findet `python main.py`
+das Modul `paketstation` nicht. Abhängigkeiten und Tooling sind in `pyproject.toml` definiert;
+Dev-Werkzeuge (pytest, ruff) optional via `pip install -e ".[dev]"`.
+
 Das `(venv)` am Zeilenanfang zeigt an, dass das venv aktiv ist.
-Bei jeder neuen Sitzung muss das venv erneut aktiviert werden (`source venv/bin/activate` bzw. `venv\Scripts\activate`).
+Bei jeder neuen Sitzung muss das venv erneut aktiviert werden (`source venv/bin/activate`
+bzw. `venv\Scripts\activate`).
 
 ---
 
-### 6. Umgebungsvariablen setzen
+### 6. Umgebungsvariablen setzen (.env)
 
-Standardmässig verbindet sich die App mit Port `5432`. Bei abweichendem Port:
+Die DB-Zugangsdaten werden über eine `.env`-Datei konfiguriert (nicht im Code hartkodiert
+und durch `.gitignore` vom Versionieren ausgeschlossen). Vorlage kopieren und anpassen:
 
 **macOS / Linux:**
 ```bash
-export PG_PORT=DEIN_PORT
-export PG_PASSWORD=DEIN_PASSWORT
+cp .env.example .env
 ```
 
-**Windows (CMD):**
-```cmd
-set PG_PORT=DEIN_PORT
-set PG_PASSWORD=DEIN_PASSWORT
+**Windows (PowerShell):**
+```powershell
+Copy-Item .env.example .env
 ```
 
-Alle verfügbaren Variablen: `PG_HOST`, `PG_PORT`, `PG_DB`, `PG_USER`, `PG_PASSWORD`
+Anschliessend `.env` öffnen und mindestens `PG_PASSWORD` setzen:
 
-Alternativ: Standardwerte direkt in `src/db.py` in der Funktion `get_engine()` anpassen.
+```
+PG_HOST=localhost
+PG_PORT=5432
+PG_DB=paketstation
+PG_USER=postgres
+PG_PASSWORD=DEIN_PASSWORT
+```
+
+Alle Variablen können auch direkt als Umgebungsvariablen gesetzt werden
+(`PG_HOST`, `PG_PORT`, `PG_DB`, `PG_USER`, `PG_PASSWORD`); diese haben Vorrang vor `.env`.
+Es gibt bewusst kein Standard-Passwort im Quellcode.
 
 ---
 
@@ -193,8 +222,37 @@ python main.py --from-db --serve
 ```
 
 > **Hinweis:** Falls beim ersten Lauf die OSM-Layer `public_transport` oder `shops` leer bleiben
-> (406-Fehler von der Overpass API), kann in `src/config.py` der Mirror gewechselt werden:
+> (406-Fehler von der Overpass API), kann in `src/paketstation/config.py` der Mirror gewechselt werden:
 > `OVERPASS_URL = "https://overpass.kumi.systems/api/interpreter"`
+
+---
+
+## Entwicklung & Tests
+
+Dev-Werkzeuge installieren und ausführen:
+
+```bash
+pip install -e ".[dev]"
+
+pytest          # Tests (in tests/, ohne DB/Netzwerk)
+ruff check .    # Linting
+ruff format .   # Formatierung
+```
+
+**Reproduzierbare Umgebung (Lockfile):** `pyproject.toml` definiert die Abhängigkeiten
+mit Mindestversionen; `requirements.lock` enthält die exakt getesteten Versionen
+(Python 3.11). Für eine reproduzierbare Installation:
+
+```bash
+pip install -r requirements.lock
+pip install -e . --no-deps      # nur das Package selbst (editierbar)
+```
+
+Lock nach Dependency-Änderungen neu erzeugen:
+
+```bash
+pip freeze --exclude-editable > requirements.lock
+```
 
 ---
 

@@ -17,26 +17,24 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-
-from src.config import DEFAULT_WEIGHTS, OUTPUT_DIR
-from src.data_loader import load_all, summarize
-from src.scoring import score_grid, top_candidates
+from paketstation.config import DEFAULT_WEIGHTS, OUTPUT_DIR
+from paketstation.data_loader import load_all, summarize
+from paketstation.scoring import score_grid, top_candidates
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Paketstation Standort-Analyse Zürich")
-    parser.add_argument("--cache",      action="store_true")
-    parser.add_argument("--db",         action="store_true", help="In PostGIS speichern")
-    parser.add_argument("--from-db",    action="store_true", help="Aus PostGIS lesen")
-    parser.add_argument("--serve",      action="store_true", help="FastAPI starten")
-    parser.add_argument("--resolution", type=int,   default=300)
-    parser.add_argument("--weights",    type=str,   default=None)
-    parser.add_argument("--top",        type=int,   default=10)
-    parser.add_argument("--min-dist",   type=float, default=500)
-    parser.add_argument("--no-map",     action="store_true")
-    parser.add_argument("--output-dir", type=str,   default=OUTPUT_DIR)
-    parser.add_argument("--verbose",    action="store_true")
+    parser.add_argument("--cache", action="store_true")
+    parser.add_argument("--db", action="store_true", help="In PostGIS speichern")
+    parser.add_argument("--from-db", action="store_true", help="Aus PostGIS lesen")
+    parser.add_argument("--serve", action="store_true", help="FastAPI starten")
+    parser.add_argument("--resolution", type=int, default=300)
+    parser.add_argument("--weights", type=str, default=None)
+    parser.add_argument("--top", type=int, default=10)
+    parser.add_argument("--min-dist", type=float, default=500)
+    parser.add_argument("--no-map", action="store_true")
+    parser.add_argument("--output-dir", type=str, default=OUTPUT_DIR)
+    parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
 
 
@@ -45,11 +43,16 @@ def parse_weights(s):
     if not s:
         return weights
     key_map = {
-        "pop": "population", "population": "population",
-        "pt": "public_transport", "transport": "public_transport",
-        "shops": "shops", "shop": "shops",
-        "comp": "competition", "competition": "competition",
-        "walk": "walkability", "walkability": "walkability",
+        "pop": "population",
+        "population": "population",
+        "pt": "public_transport",
+        "transport": "public_transport",
+        "shops": "shops",
+        "shop": "shops",
+        "comp": "competition",
+        "competition": "competition",
+        "walk": "walkability",
+        "walkability": "walkability",
     }
     for item in s.split(","):
         if "=" not in item:
@@ -64,7 +67,19 @@ def parse_weights(s):
     return weights
 
 
+def _force_utf8_console():
+    """
+    Stellt stdout/stderr auf UTF-8 um. Die Windows-Konsole nutzt sonst cp1252
+    und wirft bei Unicode-Zeichen (→, …) einen UnicodeEncodeError.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def main():
+    _force_utf8_console()
     args = parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -76,13 +91,13 @@ def main():
     os.makedirs("data", exist_ok=True)
     weights = parse_weights(args.weights)
 
-    print("\n" + "="*52)
+    print("\n" + "=" * 52)
     print("  Paketstation Standort-Analyse Zürich")
-    print("="*52)
+    print("=" * 52)
     print(f"  Rasterauflösung : {args.resolution} m")
     print(f"  Gewichte        : {weights}")
     print(f"  PostGIS         : {'ja' if args.db else 'nein'}")
-    source = 'PostGIS' if args.from_db else ('Cache' if args.cache else 'Overpass live')
+    source = "PostGIS" if args.from_db else ("Cache" if args.cache else "Overpass live")
     print(f"  Quelle          : {source}\n")
 
     t0 = time.time()
@@ -90,7 +105,8 @@ def main():
     # DB-Engine
     engine = None
     if args.db or args.from_db:
-        from src.db import get_engine, test_connection, create_schema
+        from paketstation.db import create_schema, get_engine, test_connection
+
         engine = get_engine()
         if not test_connection(engine):
             print("\n✗ PostGIS-Verbindung fehlgeschlagen.")
@@ -104,17 +120,19 @@ def main():
     summarize(layers)
 
     if args.db and not args.from_db:
-        from src.db import save_all_layers
+        from paketstation.db import save_all_layers
+
         print("  → Speichere Layer in PostGIS …")
         save_all_layers(layers, engine)
 
     # 2. Scoring
     print("Schritt 2/3: Scoring berechnen …")
     scored = score_grid(layers, resolution_m=args.resolution, weights=weights)
-    top    = top_candidates(scored, n=args.top, min_distance_m=args.min_dist)
+    top = top_candidates(scored, n=args.top, min_distance_m=args.min_dist)
 
     if args.db:
-        from src.db import save_scored_grid
+        from paketstation.db import save_scored_grid
+
         print("  → Speichere scored_grid in PostGIS …")
         save_scored_grid(scored, engine)
 
@@ -122,14 +140,26 @@ def main():
     print("Schritt 3/3: Ausgaben speichern …")
 
     top_path = os.path.join(args.output_dir, "top_standorte.csv")
-    top[["rank","nearest_quartier","lat","lon","score_total",
-         "score_pop","score_pt","score_shops",
-         "score_competition","score_walkability","nearest_station_m"]
+    top[
+        [
+            "rank",
+            "nearest_quartier",
+            "lat",
+            "lon",
+            "score_total",
+            "score_pop",
+            "score_pt",
+            "score_shops",
+            "score_competition",
+            "score_walkability",
+            "nearest_station_m",
+        ]
     ].to_csv(top_path, index=False)
     print(f"  CSV:     {top_path}")
 
     if not args.no_map:
-        from src.visualizer import build_map
+        from paketstation.visualizer import build_map
+
         map_path = os.path.join(args.output_dir, "karte.html")
         build_map(scored, layers, top, output_path=map_path)
         print(f"  Karte:   {map_path}")
@@ -142,9 +172,11 @@ def main():
     print(f"\nDone. Fertig in {elapsed:.1f}s\n")
 
     print("-- Top 10 Standorte ---------------------------------")
-    print(top[["rank","nearest_quartier","score_total",
-               "score_pop","score_pt","score_shops"]
-    ].head(10).to_string(index=False, float_format=lambda x: f"{x:.1f}"))
+    print(
+        top[["rank", "nearest_quartier", "score_total", "score_pop", "score_pt", "score_shops"]]
+        .head(10)
+        .to_string(index=False, float_format=lambda x: f"{x:.1f}")
+    )
     print()
 
     if args.serve or args.db:
@@ -152,8 +184,8 @@ def main():
         print("  Karte: http://localhost:8000/")
         print("  Docs:  http://localhost:8000/docs\n")
         import uvicorn
-        sys.path.insert(0, "src")
-        uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
+
+        uvicorn.run("paketstation.api:app", host="127.0.0.1", port=8000, reload=False)
 
 
 if __name__ == "__main__":

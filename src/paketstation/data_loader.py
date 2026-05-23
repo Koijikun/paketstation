@@ -7,16 +7,23 @@ Funktionen:
     load_all()              → dict aller Layer
 """
 
-import time
 import logging
-import requests
-import pandas as pd
+import time
+
 import geopandas as gpd
+import requests
 from shapely.geometry import Point
 
-from config import (
-    OVERPASS_URL, OVERPASS_TIMEOUT, OVERPASS_USER_AGENT, OSM_QUERIES,
-    BFS_QUARTIERE, CRS_WGS84, CRS_METRIC, BBOX, LOCAL_DATA_FILE, USE_LOCAL_DATA
+from paketstation.config import (
+    BBOX,
+    BFS_QUARTIERE,
+    CRS_WGS84,
+    LOCAL_DATA_FILE,
+    OSM_QUERIES,
+    OVERPASS_TIMEOUT,
+    OVERPASS_URL,
+    OVERPASS_USER_AGENT,
+    USE_LOCAL_DATA,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,6 +32,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # OSM / Overpass
 # ---------------------------------------------------------------------------
+
 
 def fetch_osm(layer: str, retries: int = 3, backoff: float = 5.0) -> gpd.GeoDataFrame:
     """
@@ -81,15 +89,17 @@ def _elements_to_geodataframe(elements: list, layer: str) -> gpd.GeoDataFrame:
         if el.get("type") != "node":
             continue
         tags = el.get("tags", {})
-        records.append({
-            "osm_id":    el["id"],
-            "lat":       el["lat"],
-            "lon":       el["lon"],
-            "name":      tags.get("name", ""),
-            "operator":  tags.get("operator", ""),
-            "layer":     layer,
-            "geometry":  Point(el["lon"], el["lat"]),
-        })
+        records.append(
+            {
+                "osm_id": el["id"],
+                "lat": el["lat"],
+                "lon": el["lon"],
+                "name": tags.get("name", ""),
+                "operator": tags.get("operator", ""),
+                "layer": layer,
+                "geometry": Point(el["lon"], el["lat"]),
+            }
+        )
 
     if not records:
         return _empty_geodataframe()
@@ -120,7 +130,7 @@ def load_local_post_data(file_path: str) -> gpd.GeoDataFrame:
 
     logger.info(f"Lade lokale Post-Daten aus {file_path} ...")
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
         logger.error(f"Fehler beim Laden der JSON-Datei: {e}")
@@ -128,33 +138,35 @@ def load_local_post_data(file_path: str) -> gpd.GeoDataFrame:
 
     lat_min, lat_max, lon_min, lon_max = BBOX
     records = []
-    
+
     for item in data:
         name = item.get("name_de", "")
         # Filter: My Post 24 (Automaten) ODER Post Filiale (Filialen)
         if not (name.startswith("My Post 24") or name.startswith("Post Filiale")):
             continue
-            
+
         coords = item.get("geoCoordinates", {})
         lat = coords.get("latitude")
         lon = coords.get("longitude")
-        
+
         if lat is None or lon is None:
             continue
-            
+
         # Geografischer Filter (Zürich BBOX)
         if not (lat_min <= lat <= lat_max and lon_min <= lon <= lon_max):
             continue
-            
-        records.append({
-            "osm_id":    item.get("id", ""),
-            "lat":       lat,
-            "lon":       lon,
-            "name":      name,
-            "operator":  "Die Post",
-            "layer":     "parcel_lockers",
-            "geometry":  Point(lon, lat),
-        })
+
+        records.append(
+            {
+                "osm_id": item.get("id", ""),
+                "lat": lat,
+                "lon": lon,
+                "name": name,
+                "operator": "Die Post",
+                "layer": "parcel_lockers",
+                "geometry": Point(lon, lat),
+            }
+        )
 
     if not records:
         logger.warning("Keine passenden lokalen Post-Daten im Gebiet gefunden.")
@@ -169,6 +181,7 @@ def load_local_post_data(file_path: str) -> gpd.GeoDataFrame:
 # BFS Quartiere
 # ---------------------------------------------------------------------------
 
+
 def load_bfs_quartiere() -> gpd.GeoDataFrame:
     """
     Erstellt ein GeoDataFrame aus den BFS STATPOP 2022 Quartierdaten.
@@ -180,13 +193,15 @@ def load_bfs_quartiere() -> gpd.GeoDataFrame:
     """
     records = []
     for name, lat, lon, einwohner, flaeche_ha in BFS_QUARTIERE:
-        records.append({
-            "quartier":      name,
-            "einwohner":     einwohner,
-            "flaeche_ha":    flaeche_ha,
-            "dichte_ew_ha":  round(einwohner / flaeche_ha, 2),
-            "geometry":      Point(lon, lat),
-        })
+        records.append(
+            {
+                "quartier": name,
+                "einwohner": einwohner,
+                "flaeche_ha": flaeche_ha,
+                "dichte_ew_ha": round(einwohner / flaeche_ha, 2),
+                "geometry": Point(lon, lat),
+            }
+        )
 
     gdf = gpd.GeoDataFrame(records, crs=CRS_WGS84)
     logger.info(f"BFS Quartiere geladen: {len(gdf)} Quartiere")
@@ -197,7 +212,10 @@ def load_bfs_quartiere() -> gpd.GeoDataFrame:
 # Alle Layer auf einmal laden
 # ---------------------------------------------------------------------------
 
-def load_all(use_cache: bool = False, use_db: bool = False, engine=None) -> dict[str, gpd.GeoDataFrame]:
+
+def load_all(
+    use_cache: bool = False, use_db: bool = False, engine=None
+) -> dict[str, gpd.GeoDataFrame]:
     """
     Lädt alle Datenlayer.
 
@@ -210,7 +228,8 @@ def load_all(use_cache: bool = False, use_db: bool = False, engine=None) -> dict
     import os
 
     if use_db and engine is not None:
-        from db import load_layer
+        from paketstation.db import load_layer
+
         logger.info("Lade Layer aus PostGIS …")
         layers = {layer: load_layer(layer, engine) for layer in OSM_QUERIES}
         layers["quartiere"] = load_layer("quartiere", engine)
@@ -241,6 +260,7 @@ def load_all(use_cache: bool = False, use_db: bool = False, engine=None) -> dict
 # ---------------------------------------------------------------------------
 # Hilfsfunktion: Zusammenfassung
 # ---------------------------------------------------------------------------
+
 
 def summarize(layers: dict) -> None:
     """Gibt eine kurze Übersicht der geladenen Layer auf der Konsole aus."""

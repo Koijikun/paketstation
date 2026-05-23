@@ -9,16 +9,22 @@ Pipeline:
 """
 
 import logging
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-from shapely.geometry import Point
-from scipy.spatial import cKDTree
 
-from config import (
-    BBOX, GRID_RESOLUTION_M, CRS_WGS84, CRS_METRIC,
-    RADIUS_PT_M, RADIUS_SHOP_M, RADIUS_COMPETE_M, RADIUS_WALK_M,
+import geopandas as gpd
+import numpy as np
+from scipy.spatial import cKDTree
+from shapely.geometry import Point
+
+from paketstation.config import (
+    BBOX,
+    CRS_METRIC,
+    CRS_WGS84,
     DEFAULT_WEIGHTS,
+    GRID_RESOLUTION_M,
+    RADIUS_COMPETE_M,
+    RADIUS_PT_M,
+    RADIUS_SHOP_M,
+    RADIUS_WALK_M,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,6 +33,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # 1. Analysegitter erzeugen
 # ---------------------------------------------------------------------------
+
 
 def make_grid(resolution_m: int = GRID_RESOLUTION_M) -> gpd.GeoDataFrame:
     """
@@ -80,6 +87,7 @@ def make_grid(resolution_m: int = GRID_RESOLUTION_M) -> gpd.GeoDataFrame:
 # 2. Scoring Engine
 # ---------------------------------------------------------------------------
 
+
 class ScoringEngine:
     """
     Berechnet Standortscores auf Basis räumlicher Nachbarschaftsanalysen.
@@ -95,7 +103,7 @@ class ScoringEngine:
 
     def __init__(self, weights: dict = None):
         self.weights = weights or DEFAULT_WEIGHTS.copy()
-        self._trees = {}   # cKDTree pro Layer (lazy gebaut)
+        self._trees = {}  # cKDTree pro Layer (lazy gebaut)
 
     def _get_coords(self, gdf: gpd.GeoDataFrame) -> np.ndarray:
         """Gibt (x, y)-Koordinaten im metrischen CRS zurück."""
@@ -122,15 +130,15 @@ class ScoringEngine:
             'parcel_lockers', 'quartiere'
         """
         self._layers = layers
-        self._trees["pt"]       = self._build_tree("public_transport", layers.get("public_transport"))
-        self._trees["shops"]    = self._build_tree("shops",            layers.get("shops"))
-        self._trees["compete"]  = self._build_tree("parcel_lockers",   layers.get("parcel_lockers"))
+        self._trees["pt"] = self._build_tree("public_transport", layers.get("public_transport"))
+        self._trees["shops"] = self._build_tree("shops", layers.get("shops"))
+        self._trees["compete"] = self._build_tree("parcel_lockers", layers.get("parcel_lockers"))
 
         # Bevölkerungsdichte: KD-Baum der Quartier-Centroids + Dichte-Array
         q = layers["quartiere"].to_crs(CRS_METRIC)
-        self._q_coords  = np.column_stack([q.geometry.x, q.geometry.y])
+        self._q_coords = np.column_stack([q.geometry.x, q.geometry.y])
         self._q_density = q["dichte_ew_ha"].values
-        self._q_names   = q["quartier"].values
+        self._q_names = q["quartier"].values
         logger.info("ScoringEngine bereit.")
 
     def _count_in_radius(self, tree: cKDTree | None, xy: np.ndarray, radius_m: float) -> np.ndarray:
@@ -184,26 +192,28 @@ class ScoringEngine:
         # ── 1. Bevölkerungsdichte ────────────────────────────────────────
         density, q_names = self._nearest_quartier(xy)
         # Max. Dichte in Zürich ≈ 200 EW/ha (Innenstadt)
-        result["score_pop"]         = self._normalize(density, max_val=200)
-        result["nearest_quartier"]  = q_names
+        result["score_pop"] = self._normalize(density, max_val=200)
+        result["nearest_quartier"] = q_names
 
         # ── 2. ÖV-Erreichbarkeit ────────────────────────────────────────
         pt_count = self._count_in_radius(self._trees["pt"], xy, RADIUS_PT_M)
         # Ab 20 Haltestellen in 400m → maximaler Score
-        result["score_pt"]          = self._normalize(pt_count, max_val=20)
-        result["pt_count_400m"]     = pt_count
+        result["score_pt"] = self._normalize(pt_count, max_val=20)
+        result["pt_count_400m"] = pt_count
 
         # ── 3. Nahversorgung / Supermärkte ──────────────────────────────
         shop_count = self._count_in_radius(self._trees["shops"], xy, RADIUS_SHOP_M)
-        result["score_shops"]       = self._normalize(shop_count, max_val=6)
-        result["shop_count_600m"]   = shop_count
+        result["score_shops"] = self._normalize(shop_count, max_val=6)
+        result["shop_count_600m"] = shop_count
 
         # ── 4. Konkurrenz (invertiert) ──────────────────────────────────
         # Grosse Distanz zu bestehender Station = hoher Score (positiv)
         compete_dist = self._min_dist(self._trees["compete"], xy)
         # Distanz ≥ RADIUS_COMPETE_M → voller Score; direkte Nachbarschaft → 0
         compete_dist_clipped = np.clip(compete_dist, 0, RADIUS_COMPETE_M)
-        result["score_competition"] = self._normalize(compete_dist_clipped, max_val=RADIUS_COMPETE_M)
+        result["score_competition"] = self._normalize(
+            compete_dist_clipped, max_val=RADIUS_COMPETE_M
+        )
         # inf (kein Konkurrent vorhanden) → -1 als Sentinel
         finite_dist = np.where(np.isinf(compete_dist), -1, np.round(compete_dist))
         result["nearest_station_m"] = finite_dist.astype(int)
@@ -215,12 +225,16 @@ class ScoringEngine:
             self._trees["shops"],
         ]
         poi_count = sum(
-            self._count_in_radius(t, xy, RADIUS_WALK_M)
-            for t in all_poi if t is not None
+            self._count_in_radius(t, xy, RADIUS_WALK_M) for t in all_poi if t is not None
         )
         result["score_walkability"] = self._normalize(poi_count, max_val=15)
 
         # ── Gesamtscore (gewichteter Mittelwert) ─────────────────────────
+        # ABSOLUTER Score: gewichteter Mittel der Teilscores (jeweils 0–100),
+        # daher selbst direkt in [0, 100]. Bewusst KEINE Re-Normalisierung auf
+        # das eigene Maximum – so sind Werte zwischen Läufen/Gewichtungen
+        # vergleichbar und identisch zur Berechnung im Frontend (api.py) sowie
+        # in den CSV-/GeoJSON-Ausgaben (Konsistenz Karte = CSV = DB).
         w = self.weights
         total_weight = sum(w.values())
 
@@ -228,17 +242,13 @@ class ScoringEngine:
             result["score_total"] = 0.0
         else:
             result["score_total"] = (
-                result["score_pop"]         * w["population"]        +
-                result["score_pt"]          * w["public_transport"]  +
-                result["score_shops"]       * w["shops"]             +
-                result["score_competition"] * w["competition"]       +
-                result["score_walkability"] * w["walkability"]
+                result["score_pop"] * w["population"]
+                + result["score_pt"] * w["public_transport"]
+                + result["score_shops"] * w["shops"]
+                + result["score_competition"] * w["competition"]
+                + result["score_walkability"] * w["walkability"]
             ) / total_weight
-
-        # Auf 0–100 normalisieren (relativ zum eigenen Maximum)
-        max_total = result["score_total"].max()
-        if max_total > 0:
-            result["score_total"] = (result["score_total"] / max_total * 100).round(1)
+            result["score_total"] = result["score_total"].round(1)
 
         logger.info(
             f"Scoring abgeschlossen. "
@@ -251,6 +261,7 @@ class ScoringEngine:
 # ---------------------------------------------------------------------------
 # 3. Hauptfunktion: Grid + Scoring
 # ---------------------------------------------------------------------------
+
 
 def score_grid(
     layers: dict,
@@ -282,6 +293,7 @@ def score_grid(
 # ---------------------------------------------------------------------------
 # 4. Top-Kandidaten
 # ---------------------------------------------------------------------------
+
 
 def top_candidates(
     scored: gpd.GeoDataFrame,
@@ -336,7 +348,7 @@ def top_candidates(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
-    from data_loader import load_all, summarize
+    from paketstation.data_loader import load_all, summarize
 
     layers = load_all(use_cache=True)
     summarize(layers)
@@ -345,7 +357,18 @@ if __name__ == "__main__":
     top = top_candidates(scored, n=10)
 
     print("\n── Top 10 Standorte ─────────────────────────────")
-    print(top[["rank", "nearest_quartier", "score_total",
-               "score_pop", "score_pt", "score_shops",
-               "score_competition", "score_walkability",
-               "nearest_station_m"]].to_string(index=False))
+    print(
+        top[
+            [
+                "rank",
+                "nearest_quartier",
+                "score_total",
+                "score_pop",
+                "score_pt",
+                "score_shops",
+                "score_competition",
+                "score_walkability",
+                "nearest_station_m",
+            ]
+        ].to_string(index=False)
+    )

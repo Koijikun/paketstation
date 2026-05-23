@@ -11,19 +11,23 @@ Endpoints:
     GET /api/quartiere       → BFS-Quartiere
 
 Starten:
-    uvicorn src.api:app --reload --port 8000
+    uvicorn paketstation.api:app --reload --port 8000
 """
 
 import json
 import logging
-from typing import Optional
+import os
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse
 
-from db import get_engine, load_layer, load_top_candidates, load_geojson_for_api, table_info
+from paketstation.db import (
+    get_engine,
+    load_geojson_for_api,
+    load_top_candidates,
+    table_info,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +37,16 @@ app = FastAPI(
     version="1.0",
 )
 
-# CORS – erlaubt Zugriff vom Browser (Leaflet-Karte)
+# CORS – die ausgelieferte Leaflet-Karte läuft same-origin (relative Pfade) und
+# braucht eigentlich kein CORS. Erlaubte Origins daher restriktiv und über die
+# Umgebungsvariable CORS_ALLOW_ORIGINS (kommagetrennt) konfigurierbar.
+_default_origins = "http://localhost:8000,http://127.0.0.1:8000"
+_allow_origins = [
+    o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", _default_origins).split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allow_origins,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -49,26 +59,31 @@ engine = get_engine()
 # Health / Info
 # ---------------------------------------------------------------------------
 
+
 @app.get("/api/layers", summary="Übersicht aller Tabellen")
 def get_layers():
     """Gibt alle verfügbaren Tabellen mit Zeilenanzahl und Speichergrösse zurück."""
     try:
         df = table_info(engine)
         return df.to_dict(orient="records")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Fehler bei API-Anfrage")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
 
 
 # ---------------------------------------------------------------------------
 # Raster / Scoring
 # ---------------------------------------------------------------------------
 
+
 @app.get("/api/grid", summary="Bewertetes Analysegitter")
 def get_grid(
-    min_score: float = Query(default=30.0, ge=0, le=100,
-                             description="Minimaler Score-Schwellwert (0–100)"),
-    limit: int       = Query(default=3000, ge=1, le=10000,
-                             description="Maximale Anzahl zurückgegebener Punkte"),
+    min_score: float = Query(
+        default=30.0, ge=0, le=100, description="Minimaler Score-Schwellwert (0–100)"
+    ),
+    limit: int = Query(
+        default=3000, ge=1, le=10000, description="Maximale Anzahl zurückgegebener Punkte"
+    ),
 ):
     """
     Gibt alle Rasterpunkte mit score_total >= min_score als GeoJSON zurück.
@@ -76,29 +91,30 @@ def get_grid(
     empfiehlt sich min_score >= 30.
     """
     try:
-        geojson_str = load_geojson_for_api("scored_grid", engine,
-                                           min_score=min_score, limit=limit)
+        geojson_str = load_geojson_for_api("scored_grid", engine, min_score=min_score, limit=limit)
         return JSONResponse(content=json.loads(geojson_str))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Fehler bei API-Anfrage")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
 
 
 @app.get("/api/top", summary="Top-N Standortkandidaten")
 def get_top(
-    n: int = Query(default=10, ge=1, le=50,
-                   description="Anzahl Top-Kandidaten"),
+    n: int = Query(default=10, ge=1, le=50, description="Anzahl Top-Kandidaten"),
 ):
     """Gibt die n besten Rasterpunkte nach score_total zurück."""
     try:
         gdf = load_top_candidates(engine, n=n)
         return JSONResponse(content=json.loads(gdf.to_json()))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Fehler bei API-Anfrage")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
 
 
 # ---------------------------------------------------------------------------
 # OSM-Layer
 # ---------------------------------------------------------------------------
+
 
 @app.get("/api/pt", summary="ÖV-Haltestellen")
 def get_public_transport():
@@ -106,8 +122,9 @@ def get_public_transport():
     try:
         geojson_str = load_geojson_for_api("public_transport", engine)
         return JSONResponse(content=json.loads(geojson_str))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Fehler bei API-Anfrage")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
 
 
 @app.get("/api/shops", summary="Supermärkte und Convenience-Shops")
@@ -116,8 +133,9 @@ def get_shops():
     try:
         geojson_str = load_geojson_for_api("shops", engine)
         return JSONResponse(content=json.loads(geojson_str))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Fehler bei API-Anfrage")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
 
 
 @app.get("/api/lockers", summary="Bestehende Paketstationen")
@@ -126,8 +144,9 @@ def get_lockers():
     try:
         geojson_str = load_geojson_for_api("parcel_lockers", engine)
         return JSONResponse(content=json.loads(geojson_str))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Fehler bei API-Anfrage")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
 
 
 @app.get("/api/quartiere", summary="BFS Stadtquartiere")
@@ -136,13 +155,15 @@ def get_quartiere():
     try:
         geojson_str = load_geojson_for_api("quartiere", engine)
         return JSONResponse(content=json.loads(geojson_str))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Fehler bei API-Anfrage")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from None
 
 
 # ---------------------------------------------------------------------------
 # Interaktive Karte (direkt vom API-Server ausgeliefert)
 # ---------------------------------------------------------------------------
+
 
 @app.get("/", response_class=HTMLResponse, summary="Interaktive Karte")
 def get_map():
